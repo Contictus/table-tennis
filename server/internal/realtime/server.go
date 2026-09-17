@@ -18,7 +18,9 @@ type Server struct{ rooms *room.Manager }
 func NewServer(rooms *room.Manager) *Server { return &Server{rooms: rooms} }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	conn, err := websocket.Accept(w, r, nil)
+	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+		OriginPatterns: []string{"localhost:5173", "127.0.0.1:5173"},
+	})
 	if err != nil {
 		return
 	}
@@ -95,6 +97,7 @@ func (c *client) readLoop() {
 				if player := c.findPlayer(); player != nil {
 					player.Ready = payload.Ready
 				}
+				c.attachMatch()
 				if c.match != nil {
 					c.match.Commands <- game.Command{PlayerID: c.playerID, Type: "ready", Ready: payload.Ready}
 				}
@@ -108,6 +111,25 @@ func (c *client) readLoop() {
 				default:
 				}
 			}
+		}
+	}
+}
+
+func (c *client) attachMatch() {
+	if c.match != nil {
+		return
+	}
+	match := c.rooms.Attach(c.room)
+	if match == nil {
+		return
+	}
+	c.match = match
+	c.events = match.Subscribe()
+	go c.forwardEvents()
+	match.SetOnline(c.playerID, true, time.Now())
+	for _, player := range c.room.Players {
+		if player.Ready {
+			match.Commands <- game.Command{PlayerID: player.ID, Type: "ready", Ready: true}
 		}
 	}
 }
