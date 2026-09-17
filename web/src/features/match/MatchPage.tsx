@@ -15,7 +15,7 @@ function GameCanvas() {
   const navigate = useNavigate()
   useEffect(() => {
     if (!canvasRef.current || !session || !socket) return
-    const runtime = new GameRuntime(canvasRef.current, socket, session.playerSlot, (state) => setSnapshot(state.score, state.rally, state.status, state.server))
+    const runtime = new GameRuntime(canvasRef.current, socket, session.playerSlot, session.playerId, (state) => setSnapshot(state.score, state.rally, state.status, state.server))
     const unsubscribe = socket.subscribe((message) => {
       if (message.type === 'match_state') runtime.applySnapshot(message.payload)
       if (message.type === 'match_ended') { useMatchStore.getState().setWinner(message.payload.winner, message.payload.score); navigate(`/result/${session.roomCode}`) }
