@@ -1,0 +1,73 @@
+import * as THREE from 'three'
+import type { MatchStatePayload, PlayerSlot, PaddleTarget } from '../../types/protocol'
+import type { RoomSocket } from '../../network/socket'
+
+interface Snapshot { receivedAt: number; state: MatchStatePayload }
+
+export class GameRuntime {
+  private scene = new THREE.Scene()
+  private camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100)
+  private renderer: THREE.WebGLRenderer
+  private animationFrame = 0
+  private canvas: HTMLCanvasElement
+  private socket: RoomSocket
+  private localSlot: PlayerSlot
+  private snapshots: Snapshot[] = []
+  private localTarget: PaddleTarget = { x: 0.5, z: 0.8 }
+  private localPaddle = new THREE.Group()
+  private remotePaddle = new THREE.Group()
+  private ball = new THREE.Mesh()
+  private ballShadow = new THREE.Mesh()
+  private onState?: (state: MatchStatePayload) => void
+  private sequence = 0
+  private lastInputAt = 0
+
+  constructor(canvas: HTMLCanvasElement, socket: RoomSocket, localSlot: PlayerSlot, onState?: (state: MatchStatePayload) => void) {
+    this.canvas = canvas; this.socket = socket; this.localSlot = localSlot; this.onState = onState
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); this.renderer.shadowMap.enabled = true
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap; this.renderer.setClearColor(0x000000, 0)
+    this.camera.position.set(0, 4.2, 5.6); this.camera.lookAt(0, 0, 0)
+    this.buildScene(); this.resize(); this.canvas.addEventListener('pointermove', this.handlePointerMove); window.addEventListener('resize', this.resize); this.loop()
+  }
+
+  private buildScene() {
+    this.scene.add(new THREE.HemisphereLight(0xf4f0e7, 0x263b2e, 2.2))
+    const key = new THREE.DirectionalLight(0xfff5e3, 3); key.position.set(3, 7, 4); key.castShadow = true; this.scene.add(key)
+    const table = new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.14, 7.2), new THREE.MeshStandardMaterial({ color: 0x4d9d82, roughness: 0.78 })); table.receiveShadow = true; this.scene.add(table)
+    const border = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(4.56, 0.18, 7.26)), new THREE.LineBasicMaterial({ color: 0xece9dd })); border.position.y = 0.08; this.scene.add(border)
+    const centerLine = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.012, 7.05), new THREE.MeshBasicMaterial({ color: 0xece9dd })); centerLine.position.y = 0.09; this.scene.add(centerLine)
+    const net = new THREE.Mesh(new THREE.BoxGeometry(4.55, 0.62, 0.075), new THREE.MeshStandardMaterial({ color: 0x1b2b22, transparent: true, opacity: 0.8 })); net.position.y = 0.4; this.scene.add(net)
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.MeshStandardMaterial({ color: 0xf1f0eb, roughness: 1 })); floor.rotation.x = -Math.PI / 2; floor.position.y = -0.12; floor.receiveShadow = true; this.scene.add(floor)
+    this.localPaddle = this.createPaddle(0xe85b3f); this.remotePaddle = this.createPaddle(0x19251e); this.scene.add(this.localPaddle, this.remotePaddle)
+    this.ball = new THREE.Mesh(new THREE.SphereGeometry(0.16, 24, 16), new THREE.MeshStandardMaterial({ color: 0xf7f3df, roughness: 0.45 })); this.ball.castShadow = true; this.scene.add(this.ball)
+    this.ballShadow = new THREE.Mesh(new THREE.CircleGeometry(0.2, 20), new THREE.MeshBasicMaterial({ color: 0x183126, transparent: true, opacity: 0.24 })); this.ballShadow.rotation.x = -Math.PI / 2; this.ballShadow.position.y = 0.09; this.scene.add(this.ballShadow)
+  }
+
+  private createPaddle(color: number) {
+    const group = new THREE.Group(); const head = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.48, 0.12, 32), new THREE.MeshStandardMaterial({ color, roughness: 0.58 })); head.castShadow = true; const handle = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.12, 0.8), new THREE.MeshStandardMaterial({ color: 0xc39b67 })); handle.position.z = 0.58; handle.castShadow = true; group.add(head, handle); return group
+  }
+
+  applySnapshot(state: MatchStatePayload) {
+    this.snapshots.push({ receivedAt: performance.now(), state }); if (this.snapshots.length > 8) this.snapshots.shift(); this.onState?.(state)
+    const local = state.paddles[this.localSlot]; if (local) this.localTarget = local
+  }
+
+  private handlePointerMove = (event: PointerEvent) => {
+    const rect = this.canvas.getBoundingClientRect(); const x = THREE.MathUtils.clamp((event.clientX - rect.left) / rect.width, 0.08, 0.92); const z = THREE.MathUtils.clamp(1 - (event.clientY - rect.top) / rect.height, 0.08, 0.92)
+    this.localTarget = { x, z }; const now = performance.now(); if (now - this.lastInputAt < 33) return; this.lastInputAt = now; this.sequence += 1; this.socket.send({ v: 1, type: 'paddle_move', payload: { seq: this.sequence, target: this.localTarget } })
+  }
+
+  private loop = () => { this.animationFrame = requestAnimationFrame(this.loop); this.render(); }
+  private render() {
+    const latest = this.snapshots.at(-1)?.state; if (!latest) { this.renderer.render(this.scene, this.camera); return }
+    const localState = latest.paddles[this.localSlot]; const remoteSlot = this.localSlot === 'home' ? 'away' : 'home'; const remoteState = latest.paddles[remoteSlot]
+    this.localPaddle.position.lerp(this.toWorldPaddle(this.localTarget, this.localSlot), 0.3); if (remoteState) this.remotePaddle.position.lerp(this.toWorldPaddle(remoteState, remoteSlot), 0.22); if (localState) this.localPaddle.position.lerp(this.toWorldPaddle(localState, this.localSlot), 0.06)
+    const ballState = latest.ball; this.ball.position.set((ballState.x - 0.5) * 4.1, ballState.y * 3.2 + 0.2, (ballState.z - 0.5) * 6.8); this.ballShadow.position.x = this.ball.position.x; this.ballShadow.position.z = this.ball.position.z; this.ballShadow.scale.setScalar(1.15 - Math.min(ballState.y, 0.7) * 0.45)
+    this.renderer.render(this.scene, this.camera)
+  }
+
+  private toWorldPaddle(target: PaddleTarget, slot: PlayerSlot) { const vector = new THREE.Vector3((target.x - 0.5) * 4.1, 0.25, (target.z - 0.5) * 6.8); if (slot === 'away') vector.y = 0.27; return vector }
+  private resize = () => { const width = this.canvas.clientWidth || 1; const height = this.canvas.clientHeight || 1; this.camera.aspect = width / height; this.camera.updateProjectionMatrix(); this.renderer.setSize(width, height, false) }
+  dispose() { cancelAnimationFrame(this.animationFrame); this.canvas.removeEventListener('pointermove', this.handlePointerMove); window.removeEventListener('resize', this.resize); this.renderer.dispose() }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "table-tennis-multiplayer",
+  "private": true,
+  "workspaces": [
+    "web"
+  ],
+  "scripts": {
+    "dev:web": "npm --workspace web run dev",
+    "build:web": "npm --workspace web run build",
+    "test:web": "npm --workspace web run test",
+    "protocol:generate": "npm --workspace web run protocol:generate"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}

@@ -1,0 +1,6 @@
+node_modules/
+web/dist/
+server/.gocache/
+server/.gomodcache/
+*.log
+*.tsbuildinfo
