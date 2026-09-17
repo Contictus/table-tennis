@@ -47,6 +47,21 @@ func (m *Manager) Create(playerID, token string) *Room {
 	return room
 }
 
+func (m *Manager) CreateCPU(playerID, token string) *Room {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	code := newCode()
+	cpuID := "cpu-opponent"
+	activeRoom := &Room{Code: code, Players: []*Player{
+		{ID: playerID, Slot: "home", SessionToken: token, Online: false},
+		{ID: cpuID, Slot: "away", Ready: true, Online: true},
+	}}
+	activeRoom.Match = game.NewCPUMatch(playerID, cpuID)
+	activeRoom.Match.Start()
+	m.rooms[code] = activeRoom
+	return activeRoom
+}
+
 func (m *Manager) Join(code, playerID, token string) *JoinResponse {
 	m.mu.Lock()
 	defer m.mu.Unlock()

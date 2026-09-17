@@ -1,9 +1,9 @@
 import { FormEvent, useState } from 'react'
-import { ArrowUpRight, CircleHelp, Volume2 } from 'lucide-react'
+import { ArrowUpRight, Bot, CircleHelp, Volume2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import Button from '../../shared/ui/Button'
 import IconButton from '../../shared/ui/IconButton'
-import { createRoom, joinRoom } from '../../network/api'
+import { createCPUMatch, createRoom, joinRoom } from '../../network/api'
 import { useSessionStore, useUIStore } from '../../state/stores'
 
 export default function HomePage() {
@@ -17,6 +17,12 @@ export default function HomePage() {
     setError('')
     try { const session = await createRoom(); setSession(session); navigate(`/room/${session.roomCode}`) }
     catch (value) { setError(value instanceof Error ? value.message : 'Room could not be created') }
+  }
+
+  const startCPUMatch = async () => {
+    setError('')
+    try { const session = await createCPUMatch(); setSession(session); navigate(`/room/${session.roomCode}`) }
+    catch (value) { setError(value instanceof Error ? value.message : 'Computer match could not be started') }
   }
 
   const enterRoom = async (event: FormEvent) => {
@@ -35,7 +41,7 @@ export default function HomePage() {
       <div className="eyebrow">THE EVERYDAY CLUB</div>
       <h1>One table.<br /><em>Two sides.</em></h1>
       <p className="home-copy">A focused table tennis rally, made for two. Pick a side and play the next point.</p>
-      <div className="home-actions"><Button onClick={startRoom}>Create a room <ArrowUpRight size={17} /></Button><form onSubmit={enterRoom} className="join-form"><input aria-label="Room code" placeholder="ROOM CODE" value={roomCode} onChange={(event) => setRoomCode(event.target.value.toUpperCase())} maxLength={5} /><button type="submit">Join room <ArrowUpRight size={16} /></button></form></div>
+      <div className="home-actions"><Button onClick={startRoom}>Create a room <ArrowUpRight size={17} /></Button><Button variant="ghost" onClick={startCPUMatch}>Play vs computer <Bot size={17} /></Button><form onSubmit={enterRoom} className="join-form"><input aria-label="Room code" placeholder="ROOM CODE" value={roomCode} onChange={(event) => setRoomCode(event.target.value.toUpperCase())} maxLength={5} /><button type="submit">Join room <ArrowUpRight size={16} /></button></form></div>
       {error && <p className="form-error">{error}</p>}
     </section>
     <div className="home-foot"><span>REAL-TIME 1V1</span><span>FIRST TO 11</span><span>PLAY ONLINE</span></div>

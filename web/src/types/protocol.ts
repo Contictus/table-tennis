@@ -12,6 +12,7 @@ export interface Session {
   playerId: string
   playerSlot: PlayerSlot
   sessionToken: string
+  mode?: 'player' | 'cpu'
 }
 
 export interface PaddleTarget { x: number; z: number }
@@ -33,6 +34,7 @@ export interface MatchStatePayload {
 export interface RoomStatePayload { roomCode: string; players: PlayerState[] }
 export interface MatchEndedPayload { winner: PlayerSlot | null; score?: Record<PlayerSlot, number>; reason?: 'disconnect' }
 export interface PointEndedPayload { winner: PlayerSlot; score: Record<PlayerSlot, number>; rally: number }
+export interface BallImpactPayload { id: number; tick: number; x: number; z: number; slot?: PlayerSlot }
 export interface ErrorPayload { message: string }
 
 export type ClientMessage =
@@ -44,6 +46,8 @@ export type ServerMessage =
   | Envelope<'room_state', RoomStatePayload>
   | Envelope<'match_started', { status: MatchStatus }>
   | Envelope<'match_state', MatchStatePayload>
+  | Envelope<'ball_bounced', BallImpactPayload>
+  | Envelope<'paddle_hit', BallImpactPayload>
   | Envelope<'point_ended', PointEndedPayload>
   | Envelope<'match_ended', MatchEndedPayload>
   | Envelope<'player_disconnected', { playerId: string }>

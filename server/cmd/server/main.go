@@ -30,6 +30,19 @@ func main() {
 			"playerId":     playerID,
 			"playerSlot":   "home",
 			"sessionToken": sessionToken,
+			"mode":         "player",
+		})
+	})
+	mux.HandleFunc("POST /api/matches/cpu", func(w http.ResponseWriter, r *http.Request) {
+		playerID := newID("player")
+		sessionToken := newToken()
+		newRoom := rooms.CreateCPU(playerID, sessionToken)
+		writeJSON(w, http.StatusCreated, map[string]string{
+			"roomCode":     newRoom.Code,
+			"playerId":     playerID,
+			"playerSlot":   "home",
+			"sessionToken": sessionToken,
+			"mode":         "cpu",
 		})
 	})
 	mux.HandleFunc("POST /api/rooms/", func(w http.ResponseWriter, r *http.Request) {

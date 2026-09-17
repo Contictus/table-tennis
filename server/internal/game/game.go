@@ -19,6 +19,12 @@ const (
 	StatusPointEnd  = "point_end"
 	StatusMatchEnd  = "match_end"
 	TickRate        = 60
+	minPaddleX      = 0.08
+	maxPaddleX      = 0.92
+	minHomePaddleZ  = 0.54
+	maxHomePaddleZ  = 0.94
+	minAwayPaddleZ  = 0.06
+	maxAwayPaddleZ  = 0.46
 )
 
 type Command struct {
@@ -37,6 +43,8 @@ type Match struct {
 	lastTick      time.Time
 	phaseAt       time.Time
 	initialServer string
+	cpuID         string
+	impactID      uint64
 	eventMu       sync.RWMutex
 	events        map[chan Event]struct{}
 }
@@ -93,6 +101,13 @@ func NewMatch(homeID, awayID string) *Match {
 	return match
 }
 
+func NewCPUMatch(homeID, cpuID string) *Match {
+	match := NewMatch(homeID, cpuID)
+	match.cpuID = cpuID
+	match.players[cpuID].Ready = true
+	return match
+}
+
 func (m *Match) Player(id string) *Player { return m.players[id] }
 
 func (m *Match) Start() {
@@ -113,6 +128,7 @@ func (m *Match) loop() {
 			}
 		}
 	commandsDone:
+		m.enqueueCPUInput()
 		m.step(now.Sub(m.lastTick).Seconds(), now)
 		m.lastTick = now
 		if m.ShouldTerminate(now) {
@@ -157,7 +173,11 @@ func (m *Match) handle(command Command, now time.Time) {
 		}
 		slot := player.Slot
 		current := m.State.Paddles[slot]
-		target := protocol.PaddleTarget{X: clamp(command.Target.X, 0, 1), Z: clamp(command.Target.Z, 0, 1)}
+		minZ, maxZ := paddleZBounds(slot)
+		target := protocol.PaddleTarget{
+			X: clamp(command.Target.X, minPaddleX, maxPaddleX),
+			Z: clamp(command.Target.Z, minZ, maxZ),
+		}
 		maxStep := 0.08
 		m.State.Paddles[slot] = protocol.PaddleState{X: moveToward(current.X, target.X, maxStep), Z: moveToward(current.Z, target.Z, maxStep)}
 	}
@@ -213,14 +233,16 @@ func (m *Match) simulateBall(dt float64, now time.Time) {
 	ball.X += ball.VX * dt
 	ball.Y += ball.VY * dt
 	ball.Z += ball.VZ * dt
-	ball.VY -= 0.45 * dt
+	ball.VY -= 0.95 * dt
 	if ball.X < 0.04 || ball.X > 0.96 {
 		ball.VX *= -1
 		ball.X = clamp(ball.X, 0.04, 0.96)
 	}
 	if ball.Y <= 0.08 {
 		ball.Y = 0.08
-		ball.VY = math.Abs(ball.VY) * 0.86
+		ball.VY = math.Abs(ball.VY) * 0.72
+		m.impactID++
+		m.emit("ball_bounced", protocol.BallImpactPayload{ID: m.impactID, Tick: m.State.Tick, X: ball.X, Z: ball.Z})
 		if ball.Z < 0.5 {
 			m.State.Rally++
 		}
@@ -239,12 +261,32 @@ func (m *Match) simulateBall(dt float64, now time.Time) {
 		nearAway := player.Slot == "away" && ball.Z < 0.32 && ball.VZ < 0
 		if (nearHome || nearAway) && math.Abs(ball.X-paddle.X) < 0.16 && math.Abs(ball.Y-0.14) < 0.13 {
 			ball.VZ *= -1.04
-			ball.VY = 0.2 + math.Abs(paddle.Z-ball.Z)*0.08
-			ball.VX += (ball.X - paddle.X) * 0.45
+			ball.VY = 0.34 + math.Abs(paddle.Z-ball.Z)*0.12
+			ball.VX = clamp(ball.VX+(ball.X-paddle.X)*0.72, -0.95, 0.95)
 			m.State.Rally++
+			m.emit("paddle_hit", protocol.BallImpactPayload{ID: m.impactID, Tick: m.State.Tick, X: ball.X, Z: ball.Z, Slot: player.Slot})
 			break
 		}
 	}
+}
+
+func (m *Match) enqueueCPUInput() {
+	if m.cpuID == "" || (m.State.Status != StatusInPlay && m.State.Status != StatusServing) {
+		return
+	}
+	player := m.players[m.cpuID]
+	if player == nil {
+		return
+	}
+	targetX := 0.5
+	if m.State.Ball.VZ < 0 {
+		targetX = m.State.Ball.X
+	}
+	targetZ := 0.24
+	if m.State.Ball.VZ < 0 {
+		targetZ = clamp(m.State.Ball.Z-0.03, minAwayPaddleZ, maxAwayPaddleZ)
+	}
+	m.handle(Command{PlayerID: m.cpuID, Type: "paddle_move", Seq: player.LastInput + 1, Target: protocol.PaddleTarget{X: targetX, Z: targetZ}}, m.lastTick)
 }
 
 func (m *Match) point(winner string, now time.Time) {
@@ -273,6 +315,13 @@ func (m *Match) allReady() bool {
 		}
 	}
 	return true
+}
+
+func paddleZBounds(slot string) (float64, float64) {
+	if slot == "home" {
+		return minHomePaddleZ, maxHomePaddleZ
+	}
+	return minAwayPaddleZ, maxAwayPaddleZ
 }
 
 func (m *Match) snapshot() protocol.MatchStatePayload {

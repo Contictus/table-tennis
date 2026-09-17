@@ -36,6 +36,8 @@ export interface ServerMessage {
     | "room_state"
     | "match_started"
     | "match_state"
+    | "ball_bounced"
+    | "paddle_hit"
     | "point_ended"
     | "match_ended"
     | "player_disconnected"

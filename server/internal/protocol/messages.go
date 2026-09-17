@@ -66,6 +66,14 @@ type PlayerState struct {
 	Online bool   `json:"online"`
 }
 
+type BallImpactPayload struct {
+	ID   uint64  `json:"id"`
+	Tick uint64  `json:"tick"`
+	X    float64 `json:"x"`
+	Z    float64 `json:"z"`
+	Slot string  `json:"slot,omitempty"`
+}
+
 func Message(messageType string, payload any) []byte {
 	value, _ := json.Marshal(struct {
 		Version int    `json:"v"`

@@ -67,13 +67,13 @@ def build_table():
     green = material("Table Green", (0.075, 0.42, 0.29), 0.75)
     dark = material("Table Edge", (0.025, 0.10, 0.065), 0.8)
     white = material("Table Lines", (0.9, 0.88, 0.78), 0.55)
-    cube("Tabletop", (4.5, 7.2, 0.14), (0, 0, 0.07), green)
-    cube("Table Apron", (4.58, 7.28, 0.16), (0, 0, -0.04), dark)
-    cube("Line Long A", (0.035, 7.02, 0.012), (-2.02, 0, 0.148), white)
-    cube("Line Long B", (0.035, 7.02, 0.012), (2.02, 0, 0.148), white)
-    cube("Line Short A", (4.08, 0.035, 0.012), (0, -3.15, 0.148), white)
-    cube("Line Short B", (4.08, 0.035, 0.012), (0, 3.15, 0.148), white)
-    cube("Center Line", (0.025, 7.02, 0.012), (0, 0, 0.154), white)
+    cube("Tabletop", (4.5, 8.1, 0.14), (0, 0, 0.07), green)
+    cube("Table Apron", (4.58, 8.18, 0.16), (0, 0, -0.04), dark)
+    cube("Line Long A", (0.035, 7.92, 0.012), (-2.02, 0, 0.148), white)
+    cube("Line Long B", (0.035, 7.92, 0.012), (2.02, 0, 0.148), white)
+    cube("Line Short A", (4.08, 0.035, 0.012), (0, -3.6, 0.148), white)
+    cube("Line Short B", (4.08, 0.035, 0.012), (0, 3.6, 0.148), white)
+    cube("Center Line", (0.025, 7.92, 0.012), (0, 0, 0.154), white)
     export("table.glb")
 
 
@@ -81,15 +81,15 @@ def build_net():
     reset_scene()
     dark = material("Net Frame", (0.025, 0.08, 0.05), 0.8, 0.05)
     mesh = material("Net Mesh", (0.05, 0.12, 0.08), 0.9)
-    cube("Net Top", (4.55, 0.075, 0.075), (0, 0, 0.68), dark)
+    cube("Net Top", (4.55, 0.075, 0.075), (0, 0, 0.48), dark)
     cube("Net Bottom", (4.55, 0.055, 0.06), (0, 0, 0.08), dark)
     for x in (-2.25, 2.25):
-        cube("Net Post", (0.07, 0.10, 0.72), (x, 0, 0.38), dark)
+        cube("Net Post", (0.07, 0.10, 0.48), (x, 0, 0.28), dark)
     for index in range(1, 15):
         x = -2.2 + index * (4.4 / 15)
-        cube("Net Vertical", (0.012, 0.035, 0.56), (x, 0, 0.38), mesh)
+        cube("Net Vertical", (0.012, 0.035, 0.36), (x, 0, 0.28), mesh)
     for index in range(1, 6):
-        z = 0.12 + index * 0.10
+        z = 0.12 + index * 0.06
         cube("Net Horizontal", (4.4, 0.035, 0.012), (0, 0, z), mesh)
     export("net.glb")
 

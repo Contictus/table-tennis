@@ -26,7 +26,8 @@ kullanır. Kalıcı veri, database, Redis ve microservice ilk MVP kapsamı dış
 - Oyun: ilk 11 sayı; deuce yok; servis her 2 sayıda değişir.
 - İlk servis: server tarafında `crypto/rand` ile belirlenir.
 - Disconnect: 10 saniye reconnect grace period; dönüş olmazsa maç iptal edilir.
-- Asset: ilk prototipte placeholder geometri; Blender asset’leri son aşamada.
+- Asset: Blender GLB asset pipeline mevcut; ölçü kalibrasyonu canonical scene ölçülerine göre yapılır.
+- Oyun modları: online player-vs-player ve aynı Match loop üzerinden CPU opponent.
 
 ## Proje yapısı
 
@@ -125,7 +126,7 @@ table-tennis/
 - [x] Ses efektlerinin runtime event’lerine bağlantısı
 - [x] UI component test kapsamının genişletilmesi
 
-### Aşama 7 — Asset entegrasyonu — MVP tamamlandı
+### Aşama 7 — Asset entegrasyonu ve gameplay polish — Devam ediyor
 
 - [x] Blender masa modeli
 - [x] Blender raket modelleri (home/away)
@@ -134,6 +135,22 @@ table-tennis/
 - [x] Asset manifest ve model normalizasyonu
 - [x] Asset yüklenemezse placeholder fallback
 - [x] Kamera, ışık ve gölge entegrasyonu
+- [x] Blender Z-up → Three.js Y-up raket transform’u
+- [x] Masa uzunluk/genişlik oranının canonical scene ölçüsüne alınması
+- [x] Raketlerin kendi yarı sahasında server/client sınırı
+- [x] Top boyutu ve hareket parametrelerinin iyileştirilmesi
+- [x] Server `ball_bounced` ve `paddle_hit` event’leri
+- [x] Landing ripple efekti ve impact sesleri
+- [x] Pointer-down tabanlı raket sürükleme
+
+### Aşama 8 — CPU modu — MVP tamamlandı
+
+- [x] `POST /api/matches/cpu` endpoint’i
+- [x] CPU oyunculu in-memory room oluşturma
+- [x] CPU input’unun aynı `paddle_move` command hattından geçirilmesi
+- [x] CPU’nun top yönüne göre away raketini hareket ettirmesi
+- [x] Home ekranı CPU CTA’sı
+- [x] Lobby ve match ekranında CPU ayrımı
 
 ## Sonraki uygulama sırası
 
@@ -141,7 +158,9 @@ table-tennis/
 2. Room/match concurrency ve disconnect testlerinin genişletilmesi.
 3. Gerçek iki-browser Playwright E2E akışı.
 4. Bundle split ve Three.js yükleme performansı.
-5. Blender asset pipeline ve gerçek model entegrasyonu.
+5. Runtime schema validation ve protocol testleri.
+6. CPU reaction/difficulty profilleri.
+7. Blender asset pipeline’ın daha yüksek kaliteli gerçek modellere taşınması.
 
 ## Test planı
 

@@ -56,10 +56,10 @@ export default function RoomPage() {
     <section className="lobby-card">
       <div className="eyebrow">PRIVATE COURT</div><h1>Waiting for your<br /><em>opponent.</em></h1>
       <button className="room-code" onClick={copyCode}><span>{roomCode}</span>{copied ? <Check size={18} /> : <Copy size={18} />}<small>{copied ? 'COPIED' : 'COPY ROOM CODE'}</small></button>
-      <div className="player-list"><div className="player-row"><span className="player-number">01</span><div><strong>You</strong><small>{me?.slot?.toUpperCase() ?? 'HOME'}</small></div><span className="ready-state">{ready ? <><Check size={14} /> Ready</> : 'Not ready'}</span></div><div className="player-row"><span className="player-number">02</span><div><strong>{opponent ? 'Opponent' : 'Open seat'}</strong><small>{opponent?.slot?.toUpperCase() ?? 'AWAY'}</small></div><span className="ready-state">{opponent ? <><Wifi size={14} /> Connected</> : <><Users size={14} /> Invite a friend</>}</span></div></div>
+      <div className="player-list"><div className="player-row"><span className="player-number">01</span><div><strong>You</strong><small>{me?.slot?.toUpperCase() ?? 'HOME'}</small></div><span className="ready-state">{ready ? <><Check size={14} /> Ready</> : 'Not ready'}</span></div><div className="player-row"><span className="player-number">02</span><div><strong>{opponent ? (opponent.id === 'cpu-opponent' ? 'Computer' : 'Opponent') : 'Open seat'}</strong><small>{opponent?.slot?.toUpperCase() ?? 'AWAY'}</small></div><span className="ready-state">{opponent ? <><Wifi size={14} /> Connected</> : <><Users size={14} /> Invite a friend</>}</span></div></div>
       <Button onClick={sendReady} disabled={ready || !opponent}>{ready ? 'Ready — waiting to start' : 'I’m ready'} </Button>
       {error && <p className="form-error">{error}</p>}
-      <p className="lobby-note">Both players must be ready. The match starts automatically.</p>
+      <p className="lobby-note">{opponent?.id === 'cpu-opponent' ? 'The computer is ready. Start when you are.' : 'Both players must be ready. The match starts automatically.'}</p>
     </section>
   </main>
 }

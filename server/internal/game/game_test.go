@@ -39,9 +39,32 @@ func TestPaddleInputIsBoundedAndOrdered(t *testing.T) {
 	if first.X < 0 || first.X > 1 || first.Z < 0 || first.Z > 1 {
 		t.Fatalf("paddle escaped bounds: %+v", first)
 	}
+	if first.Z < minHomePaddleZ || first.Z > maxHomePaddleZ {
+		t.Fatalf("home paddle crossed the net: %+v", first)
+	}
 	match.handle(Command{PlayerID: "home-player", Type: "paddle_move", Seq: 1, Target: protocol.PaddleTarget{X: 0, Z: 0}}, now)
 	if match.State.Paddles["home"] != first {
 		t.Fatalf("stale sequence changed paddle")
+	}
+}
+
+func TestAwayPaddleStaysOnAwayHalf(t *testing.T) {
+	match := NewMatch("home-player", "away-player")
+	match.State.Status = StatusInPlay
+	match.handle(Command{PlayerID: "away-player", Type: "paddle_move", Seq: 1, Target: protocol.PaddleTarget{X: 0.5, Z: 1}}, time.Now())
+	if got := match.State.Paddles["away"].Z; got < minAwayPaddleZ || got > maxAwayPaddleZ {
+		t.Fatalf("away paddle crossed the net: got %v", got)
+	}
+}
+
+func TestCPUMatchHasReadyOpponent(t *testing.T) {
+	match := NewCPUMatch("home-player", "cpu-opponent")
+	if match.cpuID != "cpu-opponent" || !match.players["cpu-opponent"].Ready {
+		t.Fatal("CPU opponent was not configured as ready")
+	}
+	match.handle(Command{PlayerID: "home-player", Type: "ready", Ready: true}, time.Now())
+	if match.State.Status != StatusCountdown {
+		t.Fatalf("CPU match did not start countdown: got %s", match.State.Status)
 	}
 }
 

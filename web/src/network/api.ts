@@ -10,5 +10,6 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const createRoom = () => request<Session>('/api/rooms', { method: 'POST' })
+export const createCPUMatch = () => request<Session>('/api/matches/cpu', { method: 'POST' })
 export const joinRoom = (roomCode: string) => request<Session>(`/api/rooms/${encodeURIComponent(roomCode)}/join`, { method: 'POST' })
 export const getRoom = (roomCode: string) => request<{ roomCode: string; players: Array<{ id: string; slot: 'home' | 'away'; ready: boolean; online: boolean }> }>(`/api/rooms/${encodeURIComponent(roomCode)}`)
