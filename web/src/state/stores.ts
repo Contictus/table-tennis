@@ -30,13 +30,18 @@ interface MatchState {
   status: MatchStatus
   server: PlayerSlot | null
   winner: PlayerSlot | null
+  pointWinner: PlayerSlot | null
   setSnapshot: (score: Record<PlayerSlot, number>, rally: number, status: MatchStatus, server: PlayerSlot) => void
   setWinner: (winner: PlayerSlot | null, score?: Record<PlayerSlot, number>) => void
+  setPointWinner: (winner: PlayerSlot) => void
+  clearPointWinner: () => void
 }
 export const useMatchStore = create<MatchState>((set) => ({
-  score: { home: 0, away: 0 }, rally: 0, status: 'waiting', server: null, winner: null,
+  score: { home: 0, away: 0 }, rally: 0, status: 'waiting', server: null, winner: null, pointWinner: null,
   setSnapshot: (score, rally, status, server) => set({ score, rally, status, server }),
-  setWinner: (winner, score) => set({ winner, ...(score ? { score } : {}), status: 'match_end' }),
+  setWinner: (winner, score) => set({ winner, pointWinner: null, ...(score ? { score } : {}), status: 'match_end' }),
+  setPointWinner: (pointWinner) => set({ pointWinner }),
+  clearPointWinner: () => set({ pointWinner: null }),
 }))
 
 interface UIState { soundOn: boolean; pauseOpen: boolean; setSoundOn: (value: boolean) => void; setPauseOpen: (value: boolean) => void }

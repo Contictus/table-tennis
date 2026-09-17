@@ -108,7 +108,7 @@ table-tennis/
 - [x] Otomatik WebSocket reconnect ve pending input coalescing
 - [x] Server disconnect grace period ile uyum
 
-### Aşama 6 — UI ve görsel kalite — Kısmi
+### Aşama 6 — UI ve görsel kalite — Tamamlandı
 
 - [x] Ana ekran
 - [x] Oda oluşturma ve odaya katılma
@@ -120,10 +120,10 @@ table-tennis/
 - [x] Responsive temel düzen
 - [x] Ses kontrolü UI’ı
 - [x] Hata ve bağlantı durumu göstergeleri
-- [ ] Help içeriği ve kontrol açıklamaları
-- [ ] Oyun içi servis/countdown/point-end geri bildirimleri
-- [ ] Ses efektlerinin gerçek runtime bağlantısı
-- [ ] UI component test kapsamının genişletilmesi
+- [x] Help içeriği ve kontrol açıklamaları
+- [x] Oyun içi servis/countdown/point-end geri bildirimleri
+- [x] Ses efektlerinin runtime event’lerine bağlantısı
+- [x] UI component test kapsamının genişletilmesi
 
 ### Aşama 7 — Asset entegrasyonu — Bekliyor
 
@@ -139,10 +139,8 @@ table-tennis/
 1. Protocol mesajlarının runtime schema validation’ı ve protocol testleri.
 2. Room/match concurrency ve disconnect testlerinin genişletilmesi.
 3. Gerçek iki-browser Playwright E2E akışı.
-4. Match countdown, point-end ve reconnect UI geri bildirimleri.
-5. Help/controls ekranı ve ses event bağlantıları.
-6. Bundle split ve Three.js yükleme performansı.
-7. Blender asset pipeline ve gerçek model entegrasyonu.
+4. Bundle split ve Three.js yükleme performansı.
+5. Blender asset pipeline ve gerçek model entegrasyonu.
 
 ## Test planı
 
