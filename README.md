@@ -62,4 +62,6 @@ go test ./...
 
 `npm run protocol:generate`, JSON Schema'dan TypeScript protocol tiplerini
 üretir. İlk MVP'de gerçek Blender asset'leri yerine Three.js placeholder
-geometrileri kullanılır.
+geometrileri kullanılır. Gerçek `.glb` modelleri eklendiğinde yolları
+`web/public/assets/manifest.json` içine yazmak yeterlidir; export ayarları ve
+desteklenen asset anahtarları `web/public/assets/README.md` içinde açıklanır.

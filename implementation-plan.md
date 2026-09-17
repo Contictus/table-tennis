@@ -125,14 +125,15 @@ table-tennis/
 - [x] Ses efektlerinin runtime event’lerine bağlantısı
 - [x] UI component test kapsamının genişletilmesi
 
-### Aşama 7 — Asset entegrasyonu — Bekliyor
+### Aşama 7 — Asset entegrasyonu — Pipeline tamamlandı, gerçek modeller bekliyor
 
 - [ ] Blender masa modeli
 - [ ] Blender raket modeli
 - [ ] File ve top materyalleri
-- [ ] `.glb` export/import pipeline
+- [x] `.glb` export/import pipeline
+- [x] Asset manifest ve model normalizasyonu
+- [x] Asset yüklenemezse placeholder fallback
 - [ ] Kamera, ışık ve gölge iyileştirmeleri
-- [ ] Asset fallback olarak placeholder geometrilerin korunması
 
 ## Sonraki uygulama sırası
 

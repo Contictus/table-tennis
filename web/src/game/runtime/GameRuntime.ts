@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import type { MatchStatePayload, PlayerSlot, PaddleTarget } from '../../types/protocol'
 import type { RoomSocket } from '../../network/socket'
+import { AssetLoader } from '../assets/AssetLoader'
 
 interface Snapshot { receivedAt: number; state: MatchStatePayload }
 interface PendingInput { seq: number; target: PaddleTarget }
@@ -20,8 +21,11 @@ export class GameRuntime {
   private pendingInputs: PendingInput[] = []
   private localPaddle = new THREE.Group()
   private remotePaddle = new THREE.Group()
-  private ball = new THREE.Mesh()
+  private ball = new THREE.Group()
   private ballShadow = new THREE.Mesh()
+  private tableRoot = new THREE.Group()
+  private netRoot = new THREE.Group()
+  private readonly assetLoader = new AssetLoader()
   private onState?: (state: MatchStatePayload) => void
   private sequence = 0
   private lastInputAt = 0
@@ -36,20 +40,43 @@ export class GameRuntime {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); this.renderer.shadowMap.enabled = true
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap; this.renderer.setClearColor(0x000000, 0)
     this.camera.position.set(0, 4.2, 5.6); this.camera.lookAt(0, 0, 0)
-    this.buildScene(); this.resize(); this.canvas.addEventListener('pointermove', this.handlePointerMove); window.addEventListener('resize', this.resize); this.loop()
+    this.buildScene(); void this.loadAssets(); this.resize(); this.canvas.addEventListener('pointermove', this.handlePointerMove); window.addEventListener('resize', this.resize); this.loop()
   }
 
   private buildScene() {
     this.scene.add(new THREE.HemisphereLight(0xf4f0e7, 0x263b2e, 2.2))
     const key = new THREE.DirectionalLight(0xfff5e3, 3); key.position.set(3, 7, 4); key.castShadow = true; this.scene.add(key)
-    const table = new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.14, 7.2), new THREE.MeshStandardMaterial({ color: 0x4d9d82, roughness: 0.78 })); table.receiveShadow = true; this.scene.add(table)
+    const table = new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.14, 7.2), new THREE.MeshStandardMaterial({ color: 0x4d9d82, roughness: 0.78 })); table.receiveShadow = true; this.tableRoot.add(table); this.scene.add(this.tableRoot)
     const border = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(4.56, 0.18, 7.26)), new THREE.LineBasicMaterial({ color: 0xece9dd })); border.position.y = 0.08; this.scene.add(border)
     const centerLine = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.012, 7.05), new THREE.MeshBasicMaterial({ color: 0xece9dd })); centerLine.position.y = 0.09; this.scene.add(centerLine)
-    const net = new THREE.Mesh(new THREE.BoxGeometry(4.55, 0.62, 0.075), new THREE.MeshStandardMaterial({ color: 0x1b2b22, transparent: true, opacity: 0.8 })); net.position.y = 0.4; this.scene.add(net)
+    const net = new THREE.Mesh(new THREE.BoxGeometry(4.55, 0.62, 0.075), new THREE.MeshStandardMaterial({ color: 0x1b2b22, transparent: true, opacity: 0.8 })); net.position.y = 0.4; this.netRoot.add(net); this.scene.add(this.netRoot)
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.MeshStandardMaterial({ color: 0xf1f0eb, roughness: 1 })); floor.rotation.x = -Math.PI / 2; floor.position.y = -0.12; floor.receiveShadow = true; this.scene.add(floor)
     this.localPaddle = this.createPaddle(0xe85b3f); this.remotePaddle = this.createPaddle(0x19251e); this.scene.add(this.localPaddle, this.remotePaddle)
-    this.ball = new THREE.Mesh(new THREE.SphereGeometry(0.16, 24, 16), new THREE.MeshStandardMaterial({ color: 0xf7f3df, roughness: 0.45 })); this.ball.castShadow = true; this.scene.add(this.ball)
+    const ballMesh = new THREE.Mesh(new THREE.SphereGeometry(0.16, 24, 16), new THREE.MeshStandardMaterial({ color: 0xf7f3df, roughness: 0.45 })); ballMesh.castShadow = true; this.ball.add(ballMesh); this.scene.add(this.ball)
     this.ballShadow = new THREE.Mesh(new THREE.CircleGeometry(0.2, 20), new THREE.MeshBasicMaterial({ color: 0x183126, transparent: true, opacity: 0.24 })); this.ballShadow.rotation.x = -Math.PI / 2; this.ballShadow.position.y = 0.09; this.scene.add(this.ballShadow)
+  }
+
+  private async loadAssets() {
+    const assets = await this.assetLoader.load()
+    if (assets.table) this.replaceModel(this.tableRoot, assets.table, new THREE.Vector3(4.5, 0.14, 7.2), 0.07)
+    if (assets.net) this.replaceModel(this.netRoot, assets.net, new THREE.Vector3(4.55, 0.62, 0.075), 0.4)
+    if (assets.paddle) {
+      this.replaceModel(this.localPaddle, assets.paddle.clone(), new THREE.Vector3(0.96, 0.12, 1.28), 0)
+      this.replaceModel(this.remotePaddle, assets.paddle.clone(), new THREE.Vector3(0.96, 0.12, 1.28), 0)
+    }
+    if (assets.ball) this.replaceModel(this.ball, assets.ball, new THREE.Vector3(0.32, 0.32, 0.32), 0)
+  }
+
+  private replaceModel(root: THREE.Group, model: THREE.Object3D, targetSize: THREE.Vector3, y: number) {
+    const bounds = new THREE.Box3().setFromObject(model)
+    const sourceSize = bounds.getSize(new THREE.Vector3())
+    if (sourceSize.x === 0 || sourceSize.y === 0 || sourceSize.z === 0) return
+    const scale = Math.min(targetSize.x / sourceSize.x, targetSize.y / sourceSize.y, targetSize.z / sourceSize.z)
+    const center = bounds.getCenter(new THREE.Vector3())
+    model.scale.setScalar(scale)
+    model.position.set(-center.x * scale, y - center.y * scale, -center.z * scale)
+    root.clear()
+    root.add(model)
   }
 
   private createPaddle(color: number) {
