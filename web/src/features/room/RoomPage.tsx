@@ -20,6 +20,7 @@ export default function RoomPage() {
     if (!session || session.roomCode !== roomCode) { navigate('/'); return }
     let socket = connectRoom(session)
     setConnected(false)
+    let unsubscribeStatus = socket.subscribeStatus((status) => setConnected(status === 'open'))
     let unsubscribe = socket.subscribe((message) => {
       if (message.type === 'room_state') { setPlayers(message.payload.players); setConnected(true) }
       if (message.type === 'match_started') navigate(`/match/${roomCode}`)
@@ -31,7 +32,9 @@ export default function RoomPage() {
         if (room.players.length === 2 && !rebound.current) {
           rebound.current = true
           unsubscribe()
+          unsubscribeStatus()
           socket = connectRoom(session)
+          unsubscribeStatus = socket.subscribeStatus((status) => setConnected(status === 'open'))
           unsubscribe = socket.subscribe((message) => {
             if (message.type === 'room_state') { setPlayers(message.payload.players); setConnected(true) }
             if (message.type === 'match_started') navigate(`/match/${roomCode}`)
@@ -40,7 +43,7 @@ export default function RoomPage() {
         }
       } catch { /* socket displays the actionable connection error */ }
     }, 1000)
-    return () => { unsubscribe(); window.clearInterval(poll) }
+    return () => { unsubscribe(); unsubscribeStatus(); window.clearInterval(poll) }
   }, [navigate, roomCode, session, setConnected, setError, setPlayers])
 
   const sendReady = () => { setReady(true); getActiveSocket()?.send({ v: 1, type: 'player_ready', payload: { ready: true } }) }
