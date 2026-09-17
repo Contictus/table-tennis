@@ -1,4 +1,10 @@
 {
   "version": 1,
-  "assets": {}
+  "assets": {
+    "table": "/assets/table.glb",
+    "net": "/assets/net.glb",
+    "paddleHome": "/assets/paddle-home.glb",
+    "paddleAway": "/assets/paddle-away.glb",
+    "ball": "/assets/ball.glb"
+  }
 }

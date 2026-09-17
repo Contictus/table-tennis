@@ -4,3 +4,4 @@ server/.gocache/
 server/.gomodcache/
 *.log
 *.tsbuildinfo
+tools/*.blend*

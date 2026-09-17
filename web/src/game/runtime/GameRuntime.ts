@@ -60,10 +60,10 @@ export class GameRuntime {
     const assets = await this.assetLoader.load()
     if (assets.table) this.replaceModel(this.tableRoot, assets.table, new THREE.Vector3(4.5, 0.14, 7.2), 0.07)
     if (assets.net) this.replaceModel(this.netRoot, assets.net, new THREE.Vector3(4.55, 0.62, 0.075), 0.4)
-    if (assets.paddle) {
-      this.replaceModel(this.localPaddle, assets.paddle.clone(), new THREE.Vector3(0.96, 0.12, 1.28), 0)
-      this.replaceModel(this.remotePaddle, assets.paddle.clone(), new THREE.Vector3(0.96, 0.12, 1.28), 0)
-    }
+    const homePaddle = assets.paddleHome ?? assets.paddle
+    const awayPaddle = assets.paddleAway ?? assets.paddle
+    if (homePaddle) this.replaceModel(this.localPaddle, homePaddle, new THREE.Vector3(0.96, 0.12, 1.28), 0)
+    if (awayPaddle) this.replaceModel(this.remotePaddle, awayPaddle, new THREE.Vector3(0.96, 0.12, 1.28), 0)
     if (assets.ball) this.replaceModel(this.ball, assets.ball, new THREE.Vector3(0.32, 0.32, 0.32), 0)
   }
 

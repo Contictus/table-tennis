@@ -1,7 +1,7 @@
 # Blender asset pipeline
 
-Export static Blender models as `.glb` files into this directory and register
-their public paths in `manifest.json`:
+The MVP currently ships with generated low-poly `.glb` assets. Replace them with
+final Blender exports and keep their public paths in `manifest.json`:
 
 ```json
 {
@@ -9,13 +9,14 @@ their public paths in `manifest.json`:
   "assets": {
     "table": "/assets/table.glb",
     "net": "/assets/net.glb",
-    "paddle": "/assets/paddle.glb",
+    "paddleHome": "/assets/paddle-home.glb",
+    "paddleAway": "/assets/paddle-away.glb",
     "ball": "/assets/ball.glb"
   }
 }
 ```
 
-Supported keys are `table`, `net`, `paddle` and `ball`. The runtime normalizes
+Supported keys are `table`, `net`, `paddleHome`, `paddleAway` and `ball`. The runtime normalizes
 each model into the game coordinate system and keeps the procedural placeholder
 when a key is missing or its model cannot be loaded.
 

@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 
-export type AssetKey = 'table' | 'net' | 'paddle' | 'ball'
+export type AssetKey = 'table' | 'net' | 'paddle' | 'paddleHome' | 'paddleAway' | 'ball'
 type AssetManifest = Partial<Record<AssetKey, string>>
 type LoadedAssets = Partial<Record<AssetKey, THREE.Object3D>>
 
