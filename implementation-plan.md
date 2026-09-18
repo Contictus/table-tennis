@@ -152,6 +152,14 @@ table-tennis/
 - [x] Home ekranı CPU CTA’sı
 - [x] Lobby ve match ekranında CPU ayrımı
 
+### Aşama 9 — Ralli kuralları ve sunum polish — Tamamlandı
+
+- [x] File hatası, dışarı sekme, çift sekme ve aynı yön sekmede sayı
+- [x] Raket düzlemi tabanlı çarpışma ve ralliyle hızlanan top
+- [x] Masa "tok" ve raket "pock" sesleri ile ilk dokunuşta ses unlock
+- [x] Tek-origin dev: Vite `/api` + `/ws` proxy, göreli URL'ler
+- [x] Ayaklı masa, file ve çift renkli raket seti (`manifest` v2)
+
 ## Sonraki uygulama sırası
 
 1. Protocol mesajlarının runtime schema validation’ı ve protocol testleri.
