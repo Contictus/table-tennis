@@ -19,7 +19,7 @@ func NewServer(rooms *room.Manager) *Server { return &Server{rooms: rooms} }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		OriginPatterns: []string{"localhost:5173", "127.0.0.1:5173"},
+		OriginPatterns: []string{"*"},
 	})
 	if err != nil {
 		return

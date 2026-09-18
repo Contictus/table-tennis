@@ -1,7 +1,15 @@
 import type { ClientMessage, ServerMessage, Session } from '../types/protocol'
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080'
-const WS_URL = API_URL.replace(/^http/, 'ws')
+const API_URL = import.meta.env.VITE_API_URL ?? ''
+const getWsUrl = () => {
+  if (API_URL) return API_URL.replace(/^http/, 'ws')
+  if (typeof window !== 'undefined') {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    return `${protocol}//${window.location.host}`
+  }
+  return 'ws://localhost:8080'
+}
+const WS_URL = getWsUrl()
 export type SocketStatus = 'idle' | 'connecting' | 'open' | 'reconnecting' | 'closed'
 
 export class RoomSocket {
