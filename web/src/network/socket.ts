@@ -1,6 +1,8 @@
 import type { ClientMessage, ServerMessage, Session } from '../types/protocol'
 
 const API_URL = import.meta.env.VITE_API_URL ?? ''
+// Same-origin by default (Vite proxies /api and /ws in dev); falls back to
+// the current host so production needs no extra configuration.
 const getWsUrl = () => {
   if (API_URL) return API_URL.replace(/^http/, 'ws')
   if (typeof window !== 'undefined') {
