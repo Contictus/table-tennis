@@ -18,7 +18,9 @@ const PLAYFIELD_LENGTH = 7.7
 
 export class GameRuntime {
   private scene = new THREE.Scene()
-  private camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100)
+  private camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100)
+  private readonly camTarget = new THREE.Vector3(0, 0, -0.4)
+  private readonly camOffset = new THREE.Vector3(0, 4.6, 8.0)
   private renderer: THREE.WebGLRenderer
   private animationFrame = 0
   private canvas: HTMLCanvasElement
@@ -58,7 +60,7 @@ export class GameRuntime {
     // Arka plan YOK: canvas saydam, sitenin CSS rengi görünür. Böylece zeminle
     // sayfa arasında kare/fark oluşamaz. Gölgeler için ShadowMaterial zemin yeter.
     this.scene.background = null
-    this.camera.position.set(0, 2.9, 5.6); this.camera.lookAt(0, -0.1, -0.6)
+    this.frameCamera()
     this.buildScene(); void this.loadAssets(); this.resize(); this.canvas.addEventListener('pointerdown', this.handlePointerDown); this.canvas.addEventListener('pointermove', this.handlePointerMove); this.canvas.addEventListener('pointerup', this.handlePointerUp); this.canvas.addEventListener('pointercancel', this.handlePointerUp); window.addEventListener('resize', this.resize); this.loop()
   }
 
@@ -304,7 +306,14 @@ export class GameRuntime {
     const y = slot === 'home' ? 0.76 : 0.8
     return new THREE.Vector3(this.toWorldX(target.x), y, this.toWorldZ(target.z))
   }
-  private resize = () => { const width = this.canvas.clientWidth || 1; const height = this.canvas.clientHeight || 1; this.camera.aspect = width / height; this.camera.updateProjectionMatrix(); this.renderer.setSize(width, height, false) }
+  // Referans kadraj: masa + iki raket + boşluk hep görünür. Dar ekranda
+  // kamera aynı açıyla geri çekilir, taşma olmaz.
+  private frameCamera() {
+    const f = Math.max(1, 1.25 / this.camera.aspect)
+    this.camera.position.copy(this.camTarget).addScaledVector(this.camOffset, f)
+    this.camera.lookAt(this.camTarget)
+  }
+  private resize = () => { const width = this.canvas.clientWidth || 1; const height = this.canvas.clientHeight || 1; this.camera.aspect = width / height; this.camera.updateProjectionMatrix(); this.frameCamera(); this.renderer.setSize(width, height, false) }
   dispose() { cancelAnimationFrame(this.animationFrame); this.canvas.removeEventListener('pointerdown', this.handlePointerDown); this.canvas.removeEventListener('pointermove', this.handlePointerMove); this.canvas.removeEventListener('pointerup', this.handlePointerUp); this.canvas.removeEventListener('pointercancel', this.handlePointerUp); window.removeEventListener('resize', this.resize); this.impactEffects.forEach((effect) => { this.scene.remove(effect.mesh); effect.mesh.geometry.dispose(); effect.material.dispose() }); this.trail.forEach((ghost) => { this.scene.remove(ghost); ghost.geometry.dispose(); const mat = ghost.material as THREE.Material; mat.dispose() }); this.trailPositions = []; this.renderer.dispose() }
 }
 
