@@ -47,6 +47,9 @@ type Match struct {
 	impactID      uint64
 	eventMu       sync.RWMutex
 	events        map[chan Event]struct{}
+	lastHitter    string
+	bouncesOnSide int
+	currentSide   string
 }
 
 type Player struct {
@@ -194,8 +197,10 @@ func (m *Match) step(dt float64, now time.Time) {
 			m.beginServe(now)
 		}
 	case StatusServing:
-		if now.Sub(m.phaseAt) >= 700*time.Millisecond {
+		if now.Sub(m.phaseAt) >= 500*time.Millisecond {
 			m.State.Status = StatusInPlay
+			m.impactID++
+			m.emit("paddle_hit", protocol.BallImpactPayload{ID: m.impactID, Tick: m.State.Tick, X: m.State.Ball.X, Z: m.State.Ball.Z, Slot: m.State.Server})
 		}
 	case StatusInPlay:
 		m.simulateBall(dt, now)
@@ -218,67 +223,156 @@ func (m *Match) beginServe(now time.Time) {
 	m.State.Server = m.serverForPoint()
 	m.State.Status = StatusServing
 	m.State.Rally = 0
-	serverZ := 0.23
-	velocityZ := 0.78
+	m.lastHitter = m.State.Server
+	m.bouncesOnSide = 0
+	m.currentSide = ""
+	serverZ := 0.20
+	velocityZ := 1.25
 	if m.State.Server == "home" {
-		serverZ = 0.77
-		velocityZ = -0.78
+		serverZ = 0.80
+		velocityZ = -1.25
 	}
-	m.State.Ball = protocol.BallState{X: 0.5, Y: 0.2, Z: serverZ, VX: 0.13, VY: 0.5, VZ: velocityZ}
+	vx := (float64(randomBit()%3) - 1.0) * 0.12
+	m.State.Ball = protocol.BallState{
+		X:  0.5,
+		Y:  0.18,
+		Z:  serverZ,
+		VX: vx,
+		VY: 0.62,
+		VZ: velocityZ,
+	}
 	m.phaseAt = now
 }
 
 func (m *Match) simulateBall(dt float64, now time.Time) {
 	ball := &m.State.Ball
 	prevZ := ball.Z
+
 	ball.X += ball.VX * dt
 	ball.Y += ball.VY * dt
 	ball.Z += ball.VZ * dt
-	ball.VY -= 1.7 * dt
-	if ball.X < 0.04 || ball.X > 0.96 {
-		ball.VX *= -1
-		ball.X = clamp(ball.X, 0.04, 0.96)
+	ball.VY -= 2.6 * dt
+
+	// 1. File kontrolü: Z = 0.50'de alçak geçen top fileye çarpar
+	if (prevZ-0.5)*(ball.Z-0.5) <= 0 {
+		if ball.Y < 0.165 {
+			ball.Z = 0.5 + math.Copysign(0.015, prevZ-0.5)
+			ball.VZ = -ball.VZ * 0.25
+			ball.VY = 0.08
+			m.impactID++
+			m.emit("ball_bounced", protocol.BallImpactPayload{ID: m.impactID, Tick: m.State.Tick, X: ball.X, Z: ball.Z})
+			winner := "home"
+			if prevZ > 0.5 {
+				winner = "away"
+			}
+			m.point(winner, now)
+			return
+		}
 	}
+
+	// 2. Masa sekmesi
 	if ball.Y <= 0.08 {
 		ball.Y = 0.08
-		ball.VY = math.Abs(ball.VY) * 0.72
+		isOnTable := ball.X >= 0.05 && ball.X <= 0.95 && ball.Z >= 0.05 && ball.Z <= 0.95
+		if !isOnTable {
+			winner := "home"
+			if m.lastHitter == "home" {
+				winner = "away"
+			}
+			m.point(winner, now)
+			return
+		}
+
+		ball.VY = math.Max(0.55, math.Abs(ball.VY)*0.72)
 		m.impactID++
 		m.emit("ball_bounced", protocol.BallImpactPayload{ID: m.impactID, Tick: m.State.Tick, X: ball.X, Z: ball.Z})
-		m.State.Rally++
+
+		side := "home"
+		if ball.Z < 0.50 {
+			side = "away"
+		}
+
+		if side == m.lastHitter && m.State.Rally > 0 {
+			winner := "home"
+			if m.lastHitter == "home" {
+				winner = "away"
+			}
+			m.point(winner, now)
+			return
+		}
+
+		if side == m.currentSide {
+			m.bouncesOnSide++
+		} else {
+			m.currentSide = side
+			m.bouncesOnSide = 1
+		}
+
+		if m.bouncesOnSide >= 2 {
+			winner := "home"
+			if side == "home" {
+				winner = "away"
+			}
+			m.point(winner, now)
+			return
+		}
 	}
-	// File: alçakken fileye takılır, geri düşer. Fileden geçiş yok.
-	if (prevZ-0.5)*(ball.Z-0.5) < 0 && ball.Y < 0.205 {
-		ball.Z = 0.5 + math.Copysign(0.005, prevZ-0.5)
-		ball.VZ *= -0.3
-		ball.VX *= 0.5
-		ball.VY = 0.1
-		m.impactID++
-		m.emit("ball_bounced", protocol.BallImpactPayload{ID: m.impactID, Tick: m.State.Tick, X: ball.X, Z: ball.Z})
-	}
-	if ball.Z < 0.06 || ball.Z > 0.94 {
+
+	// 3. Masayı aşan veya dışarı çıkan toplar
+	if ball.Z < 0.03 || ball.Z > 0.97 || ball.X < 0.02 || ball.X > 0.98 {
 		winner := "home"
-		if ball.Z > 0.94 {
+		if ball.Z > 0.97 || (ball.VZ > 0 && (ball.X < 0.02 || ball.X > 0.98)) {
 			winner = "away"
+		} else if ball.Z < 0.03 || (ball.VZ < 0 && (ball.X < 0.02 || ball.X > 0.98)) {
+			winner = "home"
 		}
 		m.point(winner, now)
 		return
 	}
+
+	// 4. Raket çarpışması
 	for _, player := range m.players {
 		paddle := m.State.Paddles[player.Slot]
-		nearHome := player.Slot == "home" && ball.Z > 0.68 && ball.VZ > 0
-		nearAway := player.Slot == "away" && ball.Z < 0.32 && ball.VZ < 0
-		if (nearHome || nearAway) && math.Abs(ball.X-paddle.X) < 0.16 && math.Abs(ball.Y-0.14) < 0.13 {
-			ball.VZ *= -1.03
-			if ball.VZ > 1.7 {
-				ball.VZ = 1.7
-			} else if ball.VZ < -1.7 {
-				ball.VZ = -1.7
+		if player.Slot == "home" && ball.VZ > 0 {
+			zDist := ball.Z - paddle.Z
+			inZ := (prevZ <= paddle.Z+0.04 && ball.Z >= paddle.Z-0.08) || math.Abs(zDist) < 0.08
+			inX := math.Abs(ball.X-paddle.X) < 0.18
+			inY := ball.Y >= 0.06 && ball.Y <= 0.35
+			if inZ && inX && inY {
+				m.lastHitter = "home"
+				m.bouncesOnSide = 0
+				m.currentSide = ""
+				m.State.Rally++
+				ball.Z = paddle.Z - 0.03
+				rallySpeed := math.Min(2.1, 1.25+float64(m.State.Rally)*0.03)
+				ball.VZ = -rallySpeed
+				dx := ball.X - paddle.X
+				ball.VX = clamp(ball.VX*0.25+dx*2.0, -1.15, 1.15)
+				ball.VY = 0.66 + math.Min(0.25, math.Abs(paddle.Z-0.5)*0.25)
+				m.impactID++
+				m.emit("paddle_hit", protocol.BallImpactPayload{ID: m.impactID, Tick: m.State.Tick, X: ball.X, Z: ball.Z, Slot: "home"})
+				break
 			}
-			ball.VY = 0.72 + math.Abs(paddle.Z-ball.Z)*0.15
-			ball.VX = clamp(ball.VX+(ball.X-paddle.X)*0.72, -0.95, 0.95)
-			m.State.Rally++
-			m.emit("paddle_hit", protocol.BallImpactPayload{ID: m.impactID, Tick: m.State.Tick, X: ball.X, Z: ball.Z, Slot: player.Slot})
-			break
+		} else if player.Slot == "away" && ball.VZ < 0 {
+			zDist := paddle.Z - ball.Z
+			inZ := (prevZ >= paddle.Z-0.04 && ball.Z <= paddle.Z+0.08) || math.Abs(zDist) < 0.08
+			inX := math.Abs(ball.X-paddle.X) < 0.18
+			inY := ball.Y >= 0.06 && ball.Y <= 0.35
+			if inZ && inX && inY {
+				m.lastHitter = "away"
+				m.bouncesOnSide = 0
+				m.currentSide = ""
+				m.State.Rally++
+				ball.Z = paddle.Z + 0.03
+				rallySpeed := math.Min(2.1, 1.25+float64(m.State.Rally)*0.03)
+				ball.VZ = rallySpeed
+				dx := ball.X - paddle.X
+				ball.VX = clamp(ball.VX*0.25+dx*2.0, -1.15, 1.15)
+				ball.VY = 0.66 + math.Min(0.25, math.Abs(paddle.Z-0.5)*0.25)
+				m.impactID++
+				m.emit("paddle_hit", protocol.BallImpactPayload{ID: m.impactID, Tick: m.State.Tick, X: ball.X, Z: ball.Z, Slot: "away"})
+				break
+			}
 		}
 	}
 }
@@ -292,12 +386,10 @@ func (m *Match) enqueueCPUInput() {
 		return
 	}
 	targetX := 0.5
+	targetZ := 0.22
 	if m.State.Ball.VZ < 0 {
-		targetX = m.State.Ball.X
-	}
-	targetZ := 0.24
-	if m.State.Ball.VZ < 0 {
-		targetZ = clamp(m.State.Ball.Z-0.03, minAwayPaddleZ, maxAwayPaddleZ)
+		targetX = clamp(m.State.Ball.X, minPaddleX, maxPaddleX)
+		targetZ = clamp(m.State.Ball.Z-0.02, minAwayPaddleZ, maxAwayPaddleZ)
 	}
 	m.handle(Command{PlayerID: m.cpuID, Type: "paddle_move", Seq: player.LastInput + 1, Target: protocol.PaddleTarget{X: targetX, Z: targetZ}}, m.lastTick)
 }
@@ -357,6 +449,16 @@ func (m *Match) emit(eventType string, payload any) {
 		select {
 		case subscriber <- event:
 		default:
+			if eventType != "match_state" {
+				select {
+				case <-subscriber:
+				default:
+				}
+				select {
+				case subscriber <- event:
+				default:
+				}
+			}
 		}
 	}
 }
@@ -369,7 +471,7 @@ func (m *Match) SetOnline(playerID string, online bool, now time.Time) {
 }
 
 func (m *Match) Subscribe() chan Event {
-	subscriber := make(chan Event, 64)
+	subscriber := make(chan Event, 256)
 	m.eventMu.Lock()
 	m.events[subscriber] = struct{}{}
 	m.eventMu.Unlock()

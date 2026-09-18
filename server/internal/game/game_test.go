@@ -97,3 +97,81 @@ func TestDisconnectedPlayerTerminatesAfterGracePeriod(t *testing.T) {
 		t.Fatal("match did not terminate after grace period")
 	}
 }
+
+func TestPaddleCollisionAndRally(t *testing.T) {
+	match := NewMatch("home-player", "away-player")
+	match.State.Status = StatusInPlay
+	match.State.Paddles["home"] = protocol.PaddleState{X: 0.5, Z: 0.82}
+	// Place ball just before home paddle moving towards home
+	match.State.Ball = protocol.BallState{
+		X: 0.5, Y: 0.15, Z: 0.80,
+		VX: 0, VY: 0, VZ: 1.2,
+	}
+	now := time.Now()
+	match.simulateBall(1.0/60.0, now)
+
+	// Ball should have collided with paddle, reversed VZ to negative, and incremented rally
+	if match.State.Ball.VZ >= 0 {
+		t.Fatalf("expected VZ to be negative after home hit, got %f", match.State.Ball.VZ)
+	}
+	if match.State.Rally != 1 {
+		t.Fatalf("expected rally to be 1, got %d", match.State.Rally)
+	}
+	if match.lastHitter != "home" {
+		t.Fatalf("expected lastHitter to be home, got %s", match.lastHitter)
+	}
+}
+
+func TestBallTableBounceEmitsEvent(t *testing.T) {
+	match := NewMatch("home-player", "away-player")
+	match.State.Status = StatusInPlay
+	events := match.Subscribe()
+	defer match.Unsubscribe(events)
+
+	// Place ball just above table falling down on away side
+	match.lastHitter = "home"
+	match.State.Ball = protocol.BallState{
+		X: 0.5, Y: 0.082, Z: 0.25,
+		VX: 0, VY: -0.5, VZ: -1.2,
+	}
+	now := time.Now()
+	match.simulateBall(1.0/60.0, now)
+
+	if match.State.Ball.VY <= 0 {
+		t.Fatalf("expected VY to rebound positive, got %f", match.State.Ball.VY)
+	}
+
+	// Verify ball_bounced event was emitted
+	select {
+	case ev := <-events:
+		if ev.Type != "ball_bounced" {
+			t.Fatalf("expected ball_bounced event, got %s", ev.Type)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("timed out waiting for ball_bounced event")
+	}
+}
+
+func TestDoubleBounceScoresPoint(t *testing.T) {
+	match := NewMatch("home-player", "away-player")
+	match.State.Status = StatusInPlay
+	match.lastHitter = "home"
+	match.bouncesOnSide = 1
+	match.currentSide = "away"
+
+	// Ball bounces second time on away side
+	match.State.Ball = protocol.BallState{
+		X: 0.5, Y: 0.079, Z: 0.25,
+		VX: 0, VY: -0.2, VZ: -0.5,
+	}
+	now := time.Now()
+	match.simulateBall(1.0/60.0, now)
+
+	if match.State.Status != StatusPointEnd {
+		t.Fatalf("expected StatusPointEnd, got %s", match.State.Status)
+	}
+	if match.State.Score["home"] != 1 {
+		t.Fatalf("expected home score 1, got %d", match.State.Score["home"])
+	}
+}
+
