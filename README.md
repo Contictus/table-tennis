@@ -49,6 +49,8 @@ npm --workspace web run dev
 - Maçta canvas üzerinde mouse veya touch ile raketi hareket ettir.
 - İlk 11 sayı kazanır.
 - Servis sahibi her iki sayıda değişir.
+- Fileye takılan, masaya çift seken veya dışarı çıkan top sayı kaybettirir.
+- Tarayıcı ilk tıklamaya kadar sesi kilitli tutar; maçta ses için bir kez tıkla.
 
 ## Komutlar
 
