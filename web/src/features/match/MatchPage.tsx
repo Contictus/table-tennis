@@ -20,12 +20,21 @@ function GameCanvas({ soundOn }: { soundOn: boolean }) {
   const audioRef = useRef<AudioManager | null>(null)
   useEffect(() => {
     const audio = new AudioManager(); audioRef.current = audio
-    return () => { audio.dispose(); audioRef.current = null }
+    const handleGesture = () => { audio.unlock() }
+    window.addEventListener('pointerdown', handleGesture, { passive: true })
+    window.addEventListener('keydown', handleGesture, { passive: true })
+    return () => {
+      window.removeEventListener('pointerdown', handleGesture)
+      window.removeEventListener('keydown', handleGesture)
+      audio.dispose()
+      audioRef.current = null
+    }
   }, [])
   useEffect(() => { audioRef.current?.setEnabled(soundOn) }, [soundOn])
   useEffect(() => {
     if (!canvasRef.current || !session || !socket) return
-    const runtime = new GameRuntime(canvasRef.current, socket, session.playerSlot, session.playerId, (state) => setSnapshot(state.score, state.rally, state.status, state.server))
+    const audio = audioRef.current
+    const runtime = new GameRuntime(canvasRef.current, socket, session.playerSlot, session.playerId, (state) => setSnapshot(state.score, state.rally, state.status, state.server), audio ?? undefined)
     const unsubscribe = socket.subscribe((message) => {
       if (message.type === 'match_state') runtime.applySnapshot(message.payload)
       if (message.type === 'ball_bounced') { runtime.playBounceEffect(message.payload); audioRef.current?.play('ball_bounced') }
