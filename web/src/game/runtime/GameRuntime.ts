@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import type { BallImpactPayload, MatchStatePayload, PlayerSlot, PaddleTarget } from '../../types/protocol'
 import type { RoomSocket } from '../../network/socket'
 import { AssetLoader } from '../assets/AssetLoader'
@@ -37,6 +38,7 @@ export class GameRuntime {
   private ballShadow = new THREE.Mesh()
   private tableRoot = new THREE.Group()
   private tableLines = new THREE.Group()
+  private tableBlob: THREE.Mesh | null = null
   private netRoot = new THREE.Group()
   private readonly assetLoader = new AssetLoader()
   private impactEffects: ImpactEffect[] = []
@@ -56,7 +58,17 @@ export class GameRuntime {
     this.localPrediction = defaultPosition
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); this.renderer.shadowMap.enabled = true
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap; this.renderer.setClearColor(0x000000, 0)
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    // Stüdyo görünümü: filmik ton eşleme + yumuşak aralık. Plastik hissi buradan gider.
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping
+    this.renderer.toneMappingExposure = 1.12
+    this.renderer.setClearColor(0x000000, 0)
+    // IBL: materyallere gerçekçi yansıma/derinlik veren stüdyo ortamı. Tek başına
+    // en büyük gerçekçilik kazancı budur.
+    const pmrem = new THREE.PMREMGenerator(this.renderer)
+    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
+    this.scene.environmentIntensity = 0.5
+    pmrem.dispose()
     // Arka plan YOK: canvas saydam, sitenin CSS rengi görünür. Böylece zeminle
     // sayfa arasında kare/fark oluşamaz. Gölgeler için ShadowMaterial zemin yeter.
     this.scene.background = null
@@ -65,9 +77,10 @@ export class GameRuntime {
   }
 
   private buildScene() {
-    this.scene.add(new THREE.HemisphereLight(0xfffdf6, 0x2a4034, 1.05))
-    const key = new THREE.DirectionalLight(0xfff5e3, 1.7); key.position.set(3, 7, 4); key.castShadow = true; key.shadow.mapSize.set(1024, 1024); this.scene.add(key)
-    const fill = new THREE.DirectionalLight(0xe8f0ff, 0.45); fill.position.set(-4, 3, 2); this.scene.add(fill)
+    this.scene.add(new THREE.HemisphereLight(0xfffdf6, 0x2a4034, 0.5))
+    const key = new THREE.DirectionalLight(0xfff1de, 1.9); key.position.set(3.5, 7, 4); key.castShadow = true; key.shadow.mapSize.set(2048, 2048); key.shadow.camera.left = -7; key.shadow.camera.right = 7; key.shadow.camera.top = 7; key.shadow.camera.bottom = -7; key.shadow.camera.far = 20; key.shadow.bias = -0.0003; key.shadow.normalBias = 0.02; this.scene.add(key)
+    const fill = new THREE.DirectionalLight(0xe8f0ff, 0.35); fill.position.set(-4, 3, 2); this.scene.add(fill)
+    const rim = new THREE.DirectionalLight(0xffffff, 0.5); rim.position.set(-1.5, 4, -6); this.scene.add(rim)
     const table = new THREE.Mesh(new THREE.BoxGeometry(TABLE_WIDTH, 0.14, TABLE_LENGTH), new THREE.MeshStandardMaterial({ color: 0x3f8a6e, roughness: 0.72 })); table.position.y = -0.07; table.receiveShadow = true; this.tableRoot.add(table); this.scene.add(this.tableRoot)
     // Beyaz masa çizgileri ayrı grupta: gerçek GLB masa yüklenirse (çizgileri
     // kendinde var) bu grup kaldırılır, placeholder durumda kalır.
@@ -83,7 +96,14 @@ export class GameRuntime {
     this.scene.add(this.tableLines)
     this.buildNet()
     // Zemin sadece gölge yakalar, rengi yok: sayfayla birebir aynı görünür, kare izi kalmaz.
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.ShadowMaterial({ opacity: 0.16 })); floor.rotation.x = -Math.PI / 2; floor.position.y = -0.16; floor.receiveShadow = true; this.scene.add(floor)
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.ShadowMaterial({ opacity: 0.2 })); floor.rotation.x = -Math.PI / 2; floor.position.y = -0.16; floor.receiveShadow = true; this.scene.add(floor)
+    // Masa altı yumuşak temas gölgesi: gerçek gölge haritasının yetişemediği
+    // stüdyo AO hissini verir, masayı zemine oturtur.
+    const blob = new THREE.Mesh(
+      new THREE.PlaneGeometry(TABLE_WIDTH + 2.2, TABLE_LENGTH + 2.2),
+      new THREE.MeshBasicMaterial({ map: makeRadialShadowTexture(), transparent: true, opacity: 0.5, depthWrite: false }),
+    )
+    blob.rotation.x = -Math.PI / 2; blob.position.y = -0.155; this.tableBlob = blob; this.scene.add(blob)
     this.localPaddle = this.createPaddle(0xe85b3f); this.remotePaddle = this.createPaddle(0x19251e); this.scene.add(this.localPaddle, this.remotePaddle)
     const ballMesh = new THREE.Mesh(new THREE.SphereGeometry(BALL_RADIUS, 24, 16), new THREE.MeshStandardMaterial({ color: 0xfbf7ea, roughness: 0.4 })); ballMesh.castShadow = true; this.ball.add(ballMesh); this.scene.add(this.ball)
     this.ballShadow = new THREE.Mesh(new THREE.CircleGeometry(0.12, 20), new THREE.MeshBasicMaterial({ color: 0x183126, transparent: true, opacity: 0.28 })); this.ballShadow.rotation.x = -Math.PI / 2; this.ballShadow.position.y = 0.012; this.scene.add(this.ballShadow)
@@ -314,11 +334,26 @@ export class GameRuntime {
     this.camera.lookAt(this.camTarget)
   }
   private resize = () => { const width = this.canvas.clientWidth || 1; const height = this.canvas.clientHeight || 1; this.camera.aspect = width / height; this.camera.updateProjectionMatrix(); this.frameCamera(); this.renderer.setSize(width, height, false) }
-  dispose() { cancelAnimationFrame(this.animationFrame); this.canvas.removeEventListener('pointerdown', this.handlePointerDown); this.canvas.removeEventListener('pointermove', this.handlePointerMove); this.canvas.removeEventListener('pointerup', this.handlePointerUp); this.canvas.removeEventListener('pointercancel', this.handlePointerUp); window.removeEventListener('resize', this.resize); this.impactEffects.forEach((effect) => { this.scene.remove(effect.mesh); effect.mesh.geometry.dispose(); effect.material.dispose() }); this.trail.forEach((ghost) => { this.scene.remove(ghost); ghost.geometry.dispose(); const mat = ghost.material as THREE.Material; mat.dispose() }); this.trailPositions = []; this.renderer.dispose() }
+  dispose() { cancelAnimationFrame(this.animationFrame); this.canvas.removeEventListener('pointerdown', this.handlePointerDown); this.canvas.removeEventListener('pointermove', this.handlePointerMove); this.canvas.removeEventListener('pointerup', this.handlePointerUp); this.canvas.removeEventListener('pointercancel', this.handlePointerUp); window.removeEventListener('resize', this.resize); this.impactEffects.forEach((effect) => { this.scene.remove(effect.mesh); effect.mesh.geometry.dispose(); effect.material.dispose() }); this.trail.forEach((ghost) => { this.scene.remove(ghost); ghost.geometry.dispose(); const mat = ghost.material as THREE.Material; mat.dispose() }); this.trailPositions = []; if (this.tableBlob) { this.scene.remove(this.tableBlob); this.tableBlob.geometry.dispose(); const blobMat = this.tableBlob.material as THREE.MeshBasicMaterial; blobMat.map?.dispose(); blobMat.dispose(); this.tableBlob = null } this.renderer.dispose() }
 }
 
 function moveToward(current: number, target: number, step: number) {
   const delta = target - current
   if (Math.abs(delta) <= step) return target
   return current + Math.sign(delta) * step
+}
+
+function makeRadialShadowTexture() {
+  const size = 256
+  const canvas = document.createElement('canvas')
+  canvas.width = size; canvas.height = size
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return new THREE.CanvasTexture(canvas)
+  const gradient = ctx.createRadialGradient(size / 2, size / 2, size * 0.08, size / 2, size / 2, size / 2)
+  gradient.addColorStop(0, 'rgba(20,30,25,0.55)')
+  gradient.addColorStop(0.55, 'rgba(20,30,25,0.22)')
+  gradient.addColorStop(1, 'rgba(20,30,25,0)')
+  ctx.fillStyle = gradient
+  ctx.fillRect(0, 0, size, size)
+  return new THREE.CanvasTexture(canvas)
 }
