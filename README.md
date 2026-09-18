@@ -27,7 +27,8 @@ npm run dev:web
 ```
 
 Frontend varsayılan olarak `http://localhost:5173`, backend `http://localhost:8080`
-üzerinde çalışır. Backend portunu değiştirmek için:
+üzerinde çalışır. Geliştirmede Vite `/api` ve `/ws` isteklerini backend'e
+proxy'ler; ek `VITE_API_URL` ayarı gerekmez. Backend portunu değiştirmek için:
 
 ```powershell
 $env:PORT = "18080"
