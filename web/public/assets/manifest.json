@@ -1,10 +1,10 @@
 {
-  "version": 1,
+  "version": 2,
   "assets": {
-    "table": "/assets/table.glb",
-    "net": "/assets/net.glb",
-    "paddleHome": "/assets/paddle-home.glb",
-    "paddleAway": "/assets/paddle-away.glb",
-    "ball": "/assets/ball.glb"
+    "table": "/assets/improved_table_tennis_assets/table.glb",
+    "net": "/assets/improved_table_tennis_assets/net.glb",
+    "paddleHome": "/assets/improved_table_tennis_assets/paddle-home.glb",
+    "paddleAway": "/assets/improved_table_tennis_assets/paddle-away.glb",
+    "ball": "/assets/improved_table_tennis_assets/ball.glb"
   }
 }

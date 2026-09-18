@@ -247,7 +247,7 @@ func (m *Match) simulateBall(dt float64, now time.Time) {
 		m.State.Rally++
 	}
 	// File: alçakken fileye takılır, geri düşer. Fileden geçiş yok.
-	if (prevZ-0.5)*(ball.Z-0.5) < 0 && ball.Y < 0.18 {
+	if (prevZ-0.5)*(ball.Z-0.5) < 0 && ball.Y < 0.205 {
 		ball.Z = 0.5 + math.Copysign(0.005, prevZ-0.5)
 		ball.VZ *= -0.3
 		ball.VX *= 0.5

@@ -96,14 +96,14 @@ export class GameRuntime {
     this.scene.add(this.tableLines)
     this.buildNet()
     // Zemin sadece gölge yakalar, rengi yok: sayfayla birebir aynı görünür, kare izi kalmaz.
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.ShadowMaterial({ opacity: 0.2 })); floor.rotation.x = -Math.PI / 2; floor.position.y = -0.16; floor.receiveShadow = true; this.scene.add(floor)
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.ShadowMaterial({ opacity: 0.2 })); floor.rotation.x = -Math.PI / 2; floor.position.y = -1.55; floor.receiveShadow = true; this.scene.add(floor)
     // Masa altı yumuşak temas gölgesi: gerçek gölge haritasının yetişemediği
     // stüdyo AO hissini verir, masayı zemine oturtur.
     const blob = new THREE.Mesh(
       new THREE.PlaneGeometry(TABLE_WIDTH + 2.2, TABLE_LENGTH + 2.2),
       new THREE.MeshBasicMaterial({ map: makeRadialShadowTexture(), transparent: true, opacity: 0.5, depthWrite: false }),
     )
-    blob.rotation.x = -Math.PI / 2; blob.position.y = -0.155; this.tableBlob = blob; this.scene.add(blob)
+    blob.rotation.x = -Math.PI / 2; blob.position.y = -1.54; this.tableBlob = blob; this.scene.add(blob)
     this.localPaddle = this.createPaddle(0xe85b3f); this.remotePaddle = this.createPaddle(0x19251e); this.scene.add(this.localPaddle, this.remotePaddle)
     const ballMesh = new THREE.Mesh(new THREE.SphereGeometry(BALL_RADIUS, 24, 16), new THREE.MeshStandardMaterial({ color: 0xfbf7ea, roughness: 0.4 })); ballMesh.castShadow = true; this.ball.add(ballMesh); this.scene.add(this.ball)
     this.ballShadow = new THREE.Mesh(new THREE.CircleGeometry(0.12, 20), new THREE.MeshBasicMaterial({ color: 0x183126, transparent: true, opacity: 0.28 })); this.ballShadow.rotation.x = -Math.PI / 2; this.ballShadow.position.y = 0.012; this.scene.add(this.ballShadow)
@@ -135,8 +135,10 @@ export class GameRuntime {
   private async loadAssets() {
     const assets = await this.assetLoader.load()
     // GLB masa çizgileri kendi içinde var; placeholder çizgi grubunu kaldır.
-    if (assets.table) { this.fitModel(this.tableRoot, assets.table, TABLE_WIDTH, TABLE_LENGTH, 0.55, 'top', TABLE_TOP); this.scene.remove(this.tableLines) }
-    if (assets.net) this.fitModel(this.netRoot, assets.net, TABLE_WIDTH, 0.5, 0.7, 'bottom', 0.015)
+    // Yeni masa ayaklıdır: üst yüzey y=0'a oturtulur, ayaklar zemine iner.
+    if (assets.table) { this.fitModel(this.tableRoot, assets.table, TABLE_WIDTH, TABLE_LENGTH, 1, 'top', TABLE_TOP); this.scene.remove(this.tableLines) }
+    // Yeni file alt banttan başlar; tabanı masa üstüne oturtulur.
+    if (assets.net) this.fitModel(this.netRoot, assets.net, TABLE_WIDTH, 0.5, 0.68, 'bottom', 0.0)
     const homePaddle = assets.paddleHome ?? assets.paddle
     const awayPaddle = assets.paddleAway ?? assets.paddle
     const localPaddle = this.localSlot === 'home' ? homePaddle : awayPaddle
@@ -183,9 +185,9 @@ export class GameRuntime {
   }
 
   private replacePaddleModel(root: THREE.Group, model: THREE.Object3D) {
-    // GLB raket dik gelir (sap yukarıda). Sap aşağı inecek şekilde çevir,
-    // yüzü fileye dönük dik tut, hafif öne eğ.
-    model.rotation.x = Math.PI - 0.12
+    // Yeni raket zaten diktir (yüz ±Z'ye bakar, sap +Y yukarıda). Z ekseninde
+    // ters çevir: sap aşağı iner, ön yüz (+Z, home=kırmızı) kameraya bakar.
+    model.rotation.z = Math.PI
     model.updateMatrixWorld(true)
     this.fitModel(root, model, 0.8, 1.0, 1, 'center', 0)
     root.rotation.x = -0.08
@@ -322,9 +324,10 @@ export class GameRuntime {
   private toWorldZ(value: number) { return (value - 0.5) * PLAYFIELD_LENGTH }
   private toWorldBallY(value: number) { return TABLE_TOP + BALL_RADIUS + Math.max(0, (value - 0.08) * 2.45) }
   private toWorldPaddle(target: PaddleTarget, slot: PlayerSlot) {
-    // Dik raket: sap masaya değmesin diye kafa merkezi yukarıda yüzer.
-    const y = slot === 'home' ? 0.76 : 0.8
-    return new THREE.Vector3(this.toWorldX(target.x), y, this.toWorldZ(target.z))
+    // Dik raket + sarkan sap: sap (~1.0 birim) masaya değmesin diye
+    // kafa merkezi yukarıda yüzer. Slot farkı görsel derinlik verir.
+    void slot
+    return new THREE.Vector3(this.toWorldX(target.x), 1.05, this.toWorldZ(target.z))
   }
   // Referans kadraj: masa + iki raket + boşluk hep görünür. Dar ekranda
   // kamera aynı açıyla geri çekilir, taşma olmaz.
