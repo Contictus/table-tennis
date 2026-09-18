@@ -219,21 +219,22 @@ func (m *Match) beginServe(now time.Time) {
 	m.State.Status = StatusServing
 	m.State.Rally = 0
 	serverZ := 0.23
-	velocityZ := 0.55
+	velocityZ := 0.78
 	if m.State.Server == "home" {
 		serverZ = 0.77
-		velocityZ = -0.55
+		velocityZ = -0.78
 	}
-	m.State.Ball = protocol.BallState{X: 0.5, Y: 0.2, Z: serverZ, VX: 0.13, VY: 0.18, VZ: velocityZ}
+	m.State.Ball = protocol.BallState{X: 0.5, Y: 0.2, Z: serverZ, VX: 0.13, VY: 0.5, VZ: velocityZ}
 	m.phaseAt = now
 }
 
 func (m *Match) simulateBall(dt float64, now time.Time) {
 	ball := &m.State.Ball
+	prevZ := ball.Z
 	ball.X += ball.VX * dt
 	ball.Y += ball.VY * dt
 	ball.Z += ball.VZ * dt
-	ball.VY -= 0.95 * dt
+	ball.VY -= 1.7 * dt
 	if ball.X < 0.04 || ball.X > 0.96 {
 		ball.VX *= -1
 		ball.X = clamp(ball.X, 0.04, 0.96)
@@ -243,9 +244,16 @@ func (m *Match) simulateBall(dt float64, now time.Time) {
 		ball.VY = math.Abs(ball.VY) * 0.72
 		m.impactID++
 		m.emit("ball_bounced", protocol.BallImpactPayload{ID: m.impactID, Tick: m.State.Tick, X: ball.X, Z: ball.Z})
-		if ball.Z < 0.5 {
-			m.State.Rally++
-		}
+		m.State.Rally++
+	}
+	// File: alçakken fileye takılır, geri düşer. Fileden geçiş yok.
+	if (prevZ-0.5)*(ball.Z-0.5) < 0 && ball.Y < 0.18 {
+		ball.Z = 0.5 + math.Copysign(0.005, prevZ-0.5)
+		ball.VZ *= -0.3
+		ball.VX *= 0.5
+		ball.VY = 0.1
+		m.impactID++
+		m.emit("ball_bounced", protocol.BallImpactPayload{ID: m.impactID, Tick: m.State.Tick, X: ball.X, Z: ball.Z})
 	}
 	if ball.Z < 0.06 || ball.Z > 0.94 {
 		winner := "home"
@@ -260,8 +268,13 @@ func (m *Match) simulateBall(dt float64, now time.Time) {
 		nearHome := player.Slot == "home" && ball.Z > 0.68 && ball.VZ > 0
 		nearAway := player.Slot == "away" && ball.Z < 0.32 && ball.VZ < 0
 		if (nearHome || nearAway) && math.Abs(ball.X-paddle.X) < 0.16 && math.Abs(ball.Y-0.14) < 0.13 {
-			ball.VZ *= -1.04
-			ball.VY = 0.34 + math.Abs(paddle.Z-ball.Z)*0.12
+			ball.VZ *= -1.03
+			if ball.VZ > 1.7 {
+				ball.VZ = 1.7
+			} else if ball.VZ < -1.7 {
+				ball.VZ = -1.7
+			}
+			ball.VY = 0.72 + math.Abs(paddle.Z-ball.Z)*0.15
 			ball.VX = clamp(ball.VX+(ball.X-paddle.X)*0.72, -0.95, 0.95)
 			m.State.Rally++
 			m.emit("paddle_hit", protocol.BallImpactPayload{ID: m.impactID, Tick: m.State.Tick, X: ball.X, Z: ball.Z, Slot: player.Slot})
