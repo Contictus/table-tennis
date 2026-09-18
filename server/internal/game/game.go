@@ -63,6 +63,8 @@ type Player struct {
 	DisconnectAt time.Time
 }
 
+// State is the authoritative snapshot of a match. Only the match goroutine
+// mutates it; clients receive copies through match_state events.
 type State struct {
 	Tick        uint64
 	Ball        protocol.BallState
