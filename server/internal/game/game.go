@@ -27,6 +27,8 @@ const (
 	maxAwayPaddleZ  = 0.46
 )
 
+// Command is a single validated intent from a player. Paddle moves carry a
+// client sequence number so stale or repeated inputs can be rejected.
 type Command struct {
 	PlayerID string
 	Type     string
