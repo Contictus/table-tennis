@@ -3,6 +3,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import type { BallImpactPayload, MatchStatePayload, PlayerSlot, PaddleTarget } from '../../types/protocol'
 import type { RoomSocket } from '../../network/socket'
 import { AssetLoader } from '../assets/AssetLoader'
+import type { AudioManager } from '../audio/AudioManager'
 
 interface Snapshot { receivedAt: number; state: MatchStatePayload }
 interface PendingInput { seq: number; target: PaddleTarget }
@@ -19,9 +20,9 @@ const PLAYFIELD_LENGTH = 7.7
 
 export class GameRuntime {
   private scene = new THREE.Scene()
-  private camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100)
-  private readonly camTarget = new THREE.Vector3(0, 0, -0.4)
-  private readonly camOffset = new THREE.Vector3(0, 4.6, 8.0)
+  private camera = new THREE.PerspectiveCamera(48, 1, 0.1, 100)
+  private readonly camTarget = new THREE.Vector3(0, 0.1, -0.2)
+  private readonly camOffset = new THREE.Vector3(0, 5.8, 9.6)
   private renderer: THREE.WebGLRenderer
   private animationFrame = 0
   private canvas: HTMLCanvasElement
@@ -50,9 +51,10 @@ export class GameRuntime {
   private sequence = 0
   private lastInputAt = 0
   private readonly interpolationDelay = 100
+  private audio?: AudioManager
 
-  constructor(canvas: HTMLCanvasElement, socket: RoomSocket, localSlot: PlayerSlot, localPlayerId: string, onState?: (state: MatchStatePayload) => void) {
-    this.canvas = canvas; this.socket = socket; this.localSlot = localSlot; this.localPlayerId = localPlayerId; this.onState = onState
+  constructor(canvas: HTMLCanvasElement, socket: RoomSocket, localSlot: PlayerSlot, localPlayerId: string, onState?: (state: MatchStatePayload) => void, audio?: AudioManager) {
+    this.canvas = canvas; this.socket = socket; this.localSlot = localSlot; this.localPlayerId = localPlayerId; this.onState = onState; this.audio = audio
     const defaultPosition = localSlot === 'home' ? { x: 0.5, z: 0.8 } : { x: 0.5, z: 0.2 }
     this.localInputTarget = defaultPosition
     this.localPrediction = defaultPosition
@@ -104,7 +106,9 @@ export class GameRuntime {
       new THREE.MeshBasicMaterial({ map: makeRadialShadowTexture(), transparent: true, opacity: 0.5, depthWrite: false }),
     )
     blob.rotation.x = -Math.PI / 2; blob.position.y = -1.54; this.tableBlob = blob; this.scene.add(blob)
-    this.localPaddle = this.createPaddle(0xe85b3f); this.remotePaddle = this.createPaddle(0x19251e); this.scene.add(this.localPaddle, this.remotePaddle)
+    this.localPaddle = this.createPaddle(0xe85b3f, this.localSlot)
+    this.remotePaddle = this.createPaddle(0x19251e, this.localSlot === 'home' ? 'away' : 'home')
+    this.scene.add(this.localPaddle, this.remotePaddle)
     const ballMesh = new THREE.Mesh(new THREE.SphereGeometry(BALL_RADIUS, 24, 16), new THREE.MeshStandardMaterial({ color: 0xfbf7ea, roughness: 0.4 })); ballMesh.castShadow = true; this.ball.add(ballMesh); this.scene.add(this.ball)
     this.ballShadow = new THREE.Mesh(new THREE.CircleGeometry(0.12, 20), new THREE.MeshBasicMaterial({ color: 0x183126, transparent: true, opacity: 0.28 })); this.ballShadow.rotation.x = -Math.PI / 2; this.ballShadow.position.y = 0.012; this.scene.add(this.ballShadow)
     for (let i = 0; i < this.trailLength; i += 1) {
@@ -143,8 +147,8 @@ export class GameRuntime {
     const awayPaddle = assets.paddleAway ?? assets.paddle
     const localPaddle = this.localSlot === 'home' ? homePaddle : awayPaddle
     const remotePaddle = this.localSlot === 'home' ? awayPaddle : homePaddle
-    if (localPaddle) this.replacePaddleModel(this.localPaddle, localPaddle)
-    if (remotePaddle) this.replacePaddleModel(this.remotePaddle, remotePaddle)
+    if (localPaddle) this.replacePaddleModel(this.localPaddle, localPaddle, this.localSlot)
+    if (remotePaddle) this.replacePaddleModel(this.remotePaddle, remotePaddle, this.localSlot === 'home' ? 'away' : 'home')
     if (assets.ball) this.replaceModel(this.ball, assets.ball, new THREE.Vector3(BALL_DIAMETER, BALL_DIAMETER, BALL_DIAMETER), 0)
   }
 
@@ -160,10 +164,7 @@ export class GameRuntime {
     root.add(model)
   }
 
-  // GLB modeller taban alanına (X/Z) göre ölçeklenir. Eski min-3-eksen hesabı
-  // kalınlık payı (apron/çizgi) yüzünden masayı yarı boyutta, fileyi taşmış
-  // gösteriyordu. Y ekseni ayrı çarpanla (yScale) ayarlanır, model üst/alt
-  // hizasına göre oturtulur.
+  // GLB modeller taban alanına (X/Z) göre ölçeklenir.
   private fitModel(root: THREE.Group, model: THREE.Object3D, targetX: number, targetZ: number, yScale: number, align: 'top' | 'bottom' | 'center', y: number) {
     const bounds = new THREE.Box3().setFromObject(model)
     const sourceSize = bounds.getSize(new THREE.Vector3())
@@ -184,30 +185,26 @@ export class GameRuntime {
     root.add(model)
   }
 
-  private replacePaddleModel(root: THREE.Group, model: THREE.Object3D) {
-    // Yeni raket zaten diktir (yüz ±Z'ye bakar, sap +Y yukarıda). Z ekseninde
-    // ters çevir: sap aşağı iner, ön yüz (+Z, home=kırmızı) kameraya bakar.
+  private replacePaddleModel(root: THREE.Group, model: THREE.Object3D, slot: PlayerSlot) {
     model.rotation.z = Math.PI
     model.updateMatrixWorld(true)
     this.fitModel(root, model, 0.8, 1.0, 1, 'center', 0)
-    root.rotation.x = -0.08
+    root.rotation.x = slot === 'home' ? -0.32 : 0.32
   }
 
-  private createPaddle(color: number) {
-    // Dik duruş: yuvarlak kafa yukarıda (yüzü kameraya/fileye dönük),
-    // sap aşağıda dikey. Grup orijini kafa merkezinin biraz altında.
+  private createPaddle(color: number, slot: PlayerSlot) {
     const group = new THREE.Group()
-    const head = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.44, 0.09, 40), new THREE.MeshStandardMaterial({ color, roughness: 0.55 }))
+    const head = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.08, 40), new THREE.MeshStandardMaterial({ color, roughness: 0.55 }))
     head.rotation.x = Math.PI / 2
-    head.position.y = 0.29
+    head.position.y = 0.14
     head.castShadow = true
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.44, 0.035, 12, 48), new THREE.MeshStandardMaterial({ color: 0xf3ead6, roughness: 0.5 }))
-    rim.position.y = 0.29
-    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.62, 0.09), new THREE.MeshStandardMaterial({ color: 0xc39b67, roughness: 0.6 }))
-    handle.position.set(0, -0.41, 0)
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.032, 12, 48), new THREE.MeshStandardMaterial({ color: 0xf3ead6, roughness: 0.5 }))
+    rim.position.y = 0.14
+    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.52, 0.08), new THREE.MeshStandardMaterial({ color: 0xc39b67, roughness: 0.6 }))
+    handle.position.set(0, -0.32, 0)
     handle.castShadow = true
     group.add(head, rim, handle)
-    group.rotation.x = -0.08
+    group.rotation.x = slot === 'home' ? -0.32 : 0.32
     return group
   }
 
@@ -228,7 +225,7 @@ export class GameRuntime {
     this.socket.send({ v: 1, type: 'paddle_move', payload: input })
   }
 
-  private handlePointerDown = (event: PointerEvent) => { this.pointerActive = true; this.canvas.setPointerCapture(event.pointerId); this.updatePointer(event) }
+  private handlePointerDown = (event: PointerEvent) => { this.audio?.unlock(); this.pointerActive = true; this.canvas.setPointerCapture(event.pointerId); this.updatePointer(event) }
   private handlePointerMove = (event: PointerEvent) => { if (this.pointerActive) this.updatePointer(event) }
   private handlePointerUp = (event: PointerEvent) => { this.pointerActive = false; if (this.canvas.hasPointerCapture(event.pointerId)) this.canvas.releasePointerCapture(event.pointerId) }
 
@@ -257,8 +254,8 @@ export class GameRuntime {
   }
 
   playBounceEffect(impact: BallImpactPayload) {
-    const material = new THREE.MeshBasicMaterial({ color: 0xf4ead5, transparent: true, opacity: 0.72, side: THREE.DoubleSide })
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.12, 0.2, 32), material)
+    const material = new THREE.MeshBasicMaterial({ color: 0xf4ead5, transparent: true, opacity: 0.8, side: THREE.DoubleSide })
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.10, 0.18, 32), material)
     ring.rotation.x = -Math.PI / 2
     ring.position.set(this.toWorldX(impact.x), 0.016, this.toWorldZ(impact.z))
     this.scene.add(ring)
@@ -322,15 +319,12 @@ export class GameRuntime {
 
   private toWorldX(value: number) { return (value - 0.5) * PLAYFIELD_WIDTH }
   private toWorldZ(value: number) { return (value - 0.5) * PLAYFIELD_LENGTH }
-  private toWorldBallY(value: number) { return TABLE_TOP + BALL_RADIUS + Math.max(0, (value - 0.08) * 2.45) }
+  private toWorldBallY(value: number) { return TABLE_TOP + BALL_RADIUS + Math.max(0, (value - 0.08) * 2.3) }
   private toWorldPaddle(target: PaddleTarget, slot: PlayerSlot) {
-    // Dik raket + sarkan sap: sap (~1.0 birim) masaya değmesin diye
-    // kafa merkezi yukarıda yüzer. Slot farkı görsel derinlik verir.
     void slot
-    return new THREE.Vector3(this.toWorldX(target.x), 1.05, this.toWorldZ(target.z))
+    return new THREE.Vector3(this.toWorldX(target.x), 0.42, this.toWorldZ(target.z))
   }
-  // Referans kadraj: masa + iki raket + boşluk hep görünür. Dar ekranda
-  // kamera aynı açıyla geri çekilir, taşma olmaz.
+  // Geniş ve ferah kadraj: masa, iki raket ve top yörüngesi rahatça görünür.
   private frameCamera() {
     const f = Math.max(1, 1.25 / this.camera.aspect)
     this.camera.position.copy(this.camTarget).addScaledVector(this.camOffset, f)
