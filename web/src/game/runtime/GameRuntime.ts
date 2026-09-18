@@ -164,7 +164,8 @@ export class GameRuntime {
     root.add(model)
   }
 
-  // GLB modeller taban alanına (X/Z) göre ölçeklenir.
+  // GLB modeller taban alanına (X/Z) göre ölçeklenir; yükseklik ayrı
+  // çarpanla ayarlanır, model üst/alt/orta hizasına göre oturtulur.
   private fitModel(root: THREE.Group, model: THREE.Object3D, targetX: number, targetZ: number, yScale: number, align: 'top' | 'bottom' | 'center', y: number) {
     const bounds = new THREE.Box3().setFromObject(model)
     const sourceSize = bounds.getSize(new THREE.Vector3())
